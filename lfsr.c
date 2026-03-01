@@ -24,13 +24,10 @@ void cryptimage(){
 //function for en/decrypting pngs
 void cryptpng(){
   //add in user input for file here
-  //getting segfaults. not reading in the file correctly
   char c;
   int x = 0;
   FILE *f = fopen("testfile.png", "r");
-  //do more research into what the header looks like, seeing a lot of null bytes at the beginning.
   //header appears correctly but it's got a lot of FF. Find out why
-  char *buffer = (char*)malloc(8); 
   printf("**header**\n");
   for(int i = 0; i < 8; i++){
     printf("%02X ", c=fgetc(f));
