@@ -33,10 +33,28 @@ void cryptpng(){
     printf("%02X ", c=fgetc(f));
   }
 
-  printf("\n**ihdr**\n");
-  //do a hex to binary conversion later to check these
+  //next 13 bytes
+  //IHDR looks right, might not need to actually do anything iwth it. If you find the IDAT, edit algo
+  //to isolate the important bits and encrypt them. 
+  printf("\n**IHDR**\n");
+  //IHDR length/width are big endian, check for that if you need to encrypt!!
+  printf("IHDR chunk length: %02X %02X %02X %02X\n", fgetc(f), fgetc(f), fgetc(f), fgetc(f));
+  printf("IHDR chunk type: %02X %02X %02X %02X\n", fgetc(f), fgetc(f), fgetc(f), fgetc(f));
   printf("width: %02X %02X %02X %02X\n", fgetc(f), fgetc(f), fgetc(f), fgetc(f));
   printf("height: %02X %02X %02X %02X\n", fgetc(f), fgetc(f), fgetc(f), fgetc(f));
+  printf("bit depth: %02X\n", fgetc(f));//"the number of bits per sample or per palette index(not per pixel)"
+  printf("color type: %02X\n", fgetc(f));
+  printf("compression method: %02X\n", fgetc(f));
+  printf("interlace method: %02X\n", fgetc(f));
+  //IHDR CRC also big endian?
+  printf("IHDR CRC: %02X %02X %02X %02X\n", fgetc(f), fgetc(f), fgetc(f), fgetc(f));
+
+  printf("\n**IDAT**\n");
+  //likely will be wrong endian
+  printf("IDAT chunk length: %02X %02X %02X %02X\n", fgetc(f), fgetc(f), fgetc(f), fgetc(f));
+  //IDAT CHUNK TYPE CODE SHOULD BE: 49 44 41 54, study it
+  printf("IDAT chunk type should be: 49 44 41 54\n"); 
+  printf("IDAT chunk type: %02X %02X %02X %02X\n", fgetc(f), fgetc(f), fgetc(f), fgetc(f));
   printf("\nrest of the file:\n");
   while((c=fgetc(f)) !=EOF){
     printf("%02X ", c);
