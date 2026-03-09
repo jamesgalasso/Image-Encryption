@@ -34,7 +34,7 @@ void cryptpng(){
   }
 
   //next 13 bytes
-  //IHDR looks right, might not need to actually do anything iwth it. If you find the IDAT, edit algo
+  //IHDR looks right, might not need to actually do anything with it. If you find the IDAT, edit algo
   //to isolate the important bits and encrypt them. 
   printf("\n**IHDR**\n");
   //IHDR length/width are big endian, check for that if you need to encrypt!!
