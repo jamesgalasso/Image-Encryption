@@ -5,7 +5,7 @@ Can currently encrypt/decrypt strings with LFSR
 
 TODO:
 
-Encrypt/Decript IDAT of PNG files
+Encrypt/Decrypt IDAT of PNG files
 
 Future enhancements:
 * Compatibility with more images
