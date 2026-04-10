@@ -24,9 +24,10 @@ void cryptimage(){
 //function for en/decrypting pngs
 void cryptpng(){
   //add in user input for file here
-  char c;
+  int c;
   int x = 0;
-  FILE *f = fopen("testfile.png", "r");
+  int truncateCount = 0;
+  FILE *f = fopen("testfile.png", "rb");
   //header appears correctly but it's got a lot of FF. Find out why
   printf("**header**\n");
   for(int i = 0; i < 8; i++){
@@ -34,7 +35,7 @@ void cryptpng(){
   }
 
   //next 13 bytes
-  //IHDR looks right, might not need to actually do anything with it. If you find the IDAT, edit algo
+  //IHDR looks right, might not need to actually do anything iwth it. If you find the IDAT, edit algo
   //to isolate the important bits and encrypt them. 
   printf("\n**IHDR**\n");
   //IHDR length/width are big endian, check for that if you need to encrypt!!
@@ -55,8 +56,8 @@ void cryptpng(){
   //IDAT CHUNK TYPE CODE SHOULD BE: 49 44 41 54, study it
   printf("IDAT chunk type should be: 49 44 41 54\n"); 
   printf("IDAT chunk type: %02X %02X %02X %02X\n", fgetc(f), fgetc(f), fgetc(f), fgetc(f));
-  printf("\nrest of the file:\n");
-  while((c=fgetc(f)) !=EOF){
+  printf("\nrest of the file truncated after 20 iterations:\n");
+  while((c=fgetc(f)) !=EOF && truncateCount++ < 20){
     printf("%02X ", c);
     if(!(++x % 16)){
       putc('\n',stdout);
