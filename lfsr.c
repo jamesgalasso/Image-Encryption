@@ -1,11 +1,42 @@
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+void readBytes(char* buffer, int count, size_t* bytes_read, int* loop, FILE *f){
+  buffer = realloc(buffer, count);
+  if(!buffer){
+    printf("buffer is null, exiting\n");
+    exit(3); 
+  }
+  *bytes_read = fread(buffer, 1, count, f);
+  if(*bytes_read < 4){
+    printf("EOF reached\n");
+    *loop = 0;
+  }
+  else if(*bytes_read != 4){
+    printf("Error reading bytes, exiting\n");
+    exit(4);
+  } 
+}
+char *readInput(){
+  int count = 0, size=500, extra = 0, c;
+  char *buffer = malloc(size*sizeof(char));
+  if(buffer == NULL){
+    printf("Buffer is null exit 1\n");
+    exit(1);
+  }
+  if(fgets(buffer, size*sizeof(char), stdin) == NULL){
+    printf("failed to read input exit 2\n");
+    exit(2);
+  }
+    return buffer;
+}
 
 //function for en/decrypting strings
 unsigned char *cryptstring(unsigned char *data, unsigned int initialValue){
     unsigned int lfsr = initialValue, feedback = 0x87654321;
-    int dataLength = strlen(data);
+    int dataLength = strlen(data);//find a better approach for this, null characters will prematurely end the string. 
     for(int i = 0; i < dataLength; i++){//for each element in the array
       for(int j = 0; j < 8; j++){ //for each bit in each character
 	        if(lfsr & 1) //if XXXXXXXX & 00000001 is 1
@@ -26,68 +57,54 @@ void cryptpng(){
   //add in user input for file here
   int c;
   int x = 0;
-  int truncateCount = 0;
+  int loop = 1;
   FILE *f = fopen("testfile.png", "rb");
-  //header appears correctly but it's got a lot of FF. Find out why
-  printf("**header**\n");
-  for(int i = 0; i < 8; i++){
-    printf("%02X ", c=fgetc(f));
-  }
+  unsigned char png_signature[8] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+  unsigned char idat_hdr[4] = {0x49, 0x44, 0x41, 0x54};//possible endian issue?
+  uint32_t chunk_length = 0;
+  
 
-  //next 13 bytes
-  //IHDR looks right, might not need to actually do anything iwth it. If you find the IDAT, edit algo
-  //to isolate the important bits and encrypt them. 
-  printf("\n**IHDR**\n");
-  //IHDR length/width are big endian, check for that if you need to encrypt!!
-  printf("IHDR chunk length: %02X %02X %02X %02X\n", fgetc(f), fgetc(f), fgetc(f), fgetc(f));
-  printf("IHDR chunk type: %02X %02X %02X %02X\n", fgetc(f), fgetc(f), fgetc(f), fgetc(f));
-  printf("width: %02X %02X %02X %02X\n", fgetc(f), fgetc(f), fgetc(f), fgetc(f));
-  printf("height: %02X %02X %02X %02X\n", fgetc(f), fgetc(f), fgetc(f), fgetc(f));
-  printf("bit depth: %02X\n", fgetc(f));//"the number of bits per sample or per palette index(not per pixel)"
-  printf("color type: %02X\n", fgetc(f));
-  printf("compression method: %02X\n", fgetc(f));
-  printf("interlace method: %02X\n", fgetc(f));
-  //IHDR CRC also big endian?
-  printf("IHDR CRC: %02X %02X %02X %02X\n", fgetc(f), fgetc(f), fgetc(f), fgetc(f));
-
-  printf("\n**IDAT**\n");
-  //likely will be wrong endian
-  printf("IDAT chunk length: %02X %02X %02X %02X\n", fgetc(f), fgetc(f), fgetc(f), fgetc(f));
-  //IDAT CHUNK TYPE CODE SHOULD BE: 49 44 41 54, study it
-  printf("IDAT chunk type should be: 49 44 41 54\n"); 
-  printf("IDAT chunk type: %02X %02X %02X %02X\n", fgetc(f), fgetc(f), fgetc(f), fgetc(f));
-  printf("\nrest of the file truncated after 20 iterations:\n");
-  while((c=fgetc(f)) !=EOF && truncateCount++ < 20){
-    printf("%02X ", c);
-    if(!(++x % 16)){
-      putc('\n',stdout);
-    }
-  }
-  fclose(f);
-}//end cryptpng
-char *readInput(){
-  int count = 0, size=500, extra = 0, c;
-  char *buffer = malloc(size*sizeof(char));
-  if(buffer == NULL){
-    printf("Buffer is null exit 1\n");
+  //check if PNG(or looks like PNG)
+  unsigned char *buffer = malloc(8);
+  if(!buffer){
+    printf("buffer is null, exiting\n");
     exit(1);
   }
-  if(fgets(buffer, size*sizeof(char), stdin) == NULL){
-    printf("failed to read input exit 2\n");
+  size_t bytes_read = fread(buffer, 1, 8, f);
+  if(bytes_read != 8){
+    printf("failed to read png signature, exiting\n");
+    exit(1);
+  }
+  if(memcmp(buffer, png_signature, 8)){
+    printf("file is not a png, exiting\n");
     exit(2);
   }
-  /*if(buffer[size-1] != '\n'){
-    while((c=getchar()!='\n') && (c != EOF))
-      extra=1;
-    if(extra){
-      printf("potential overflow detected exit 3\n");
-      exit(3);
-    }
+
+  
+  while(loop){
+  //get chunk length
+  readBytes(buffer, 4, &bytes_read, &loop, f);
+  chunk_length = ((uint32_t)(unsigned char)buffer[0] << 24) | 
+               ((uint32_t)(unsigned char)buffer[1] << 16) | 
+               ((uint32_t)(unsigned char)buffer[2] << 8) | 
+               (unsigned char)buffer[3];
+  readBytes(buffer, 4, &bytes_read, &loop, f);
+  if(!memcmp(buffer, idat_hdr, 4)){
+    printf("IDAT found\n");
+    readBytes(buffer, chunk_length, &bytes_read, &loop, f);//grab chunk data here
+
+    /* run LFSR here */
+    //recompute CRC here
+  } else {
+    printf("IDAT not found, skipping chunk\n");
+    fseek(f, chunk_length + 4, SEEK_CUR);
   }
-  buffer[size-1] = '\0';*/
-  //printf("%s\n", buffer);
-    return buffer;
-}
+}//end while
+
+  free(buffer);
+  fclose(f);
+}//end cryptpng
+//pass address of bytes read later and dont need to return it
 
 int main(){
   int option = 0, max=500;
