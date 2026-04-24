@@ -49,8 +49,19 @@ unsigned char *cryptstring(unsigned char *data, unsigned int initialValue){
     return data;
   }//end cryptstring
 //function for en/decrypting any image
-void cryptimage(){
-}//end cryptimage
+void lfsrpng(unsigned char *data, unsigned int initial_value, uint32_t data_length){
+  unsigned int feedback = 0x87654321;//define this globally later
+  unsigned int lfsr = initial_value;
+  for(int i = 0; i < data_length; i++){
+    for(int j = 0; j < 8; j++){
+      if(lfsr & 1)
+        lfsr = (lfsr>>1)^feedback;
+      else
+        lfsr >>=1;
+    }//end for j
+    data[i] ^= (lfsr & 0x00FF);
+  }//end for i
+}
 
 //function for en/decrypting pngs
 void cryptpng(){
@@ -62,7 +73,7 @@ void cryptpng(){
   unsigned char png_signature[8] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
   unsigned char idat_hdr[4] = {0x49, 0x44, 0x41, 0x54};//possible endian issue?
   uint32_t chunk_length = 0;
-  
+  unsigned int initial_value = 0x12345678; // Initial value for LFSR define globally later
 
   //check if PNG(or looks like PNG)
   unsigned char *buffer = malloc(8);
@@ -84,6 +95,7 @@ void cryptpng(){
   while(loop){
   //get chunk length
   readBytes(buffer, 4, &bytes_read, &loop, f);
+  //chunk length is big endian in PNGs
   chunk_length = ((uint32_t)(unsigned char)buffer[0] << 24) | 
                ((uint32_t)(unsigned char)buffer[1] << 16) | 
                ((uint32_t)(unsigned char)buffer[2] << 8) | 
@@ -92,9 +104,12 @@ void cryptpng(){
   if(!memcmp(buffer, idat_hdr, 4)){
     printf("IDAT found\n");
     readBytes(buffer, chunk_length, &bytes_read, &loop, f);//grab chunk data here
-
-    /* run LFSR here */
-    //recompute CRC here
+    lfsrpng(buffer, initial_value, chunk_length);//lfsr on chunk data
+    fseek(f, -chunk_length-4, SEEK_CUR);//CRC works on both IDAT header & data, move back to before the header
+    //compute CRC here
+    fseek(f, 4, SEEK_CUR);//move past header(rewrite maybe?)
+    fwrite(buffer, 1, chunk_length, f);//write encrypted data back to file
+    //write computed CRC here
   } else {
     printf("IDAT not found, skipping chunk\n");
     fseek(f, chunk_length + 4, SEEK_CUR);
