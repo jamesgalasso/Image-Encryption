@@ -1,11 +1,11 @@
 ##WORK IN PROGRESS##
 
-Can currently encrypt/decrypt strings with LFSR
+Can currently encrypt PNGs with LFSR
 
 
 TODO:
 
-Encrypt/Decrypt IDAT of PNG files
+Recompute CRCs to allow for rendering.
 
 Future enhancements:
 * Compatibility with more images
