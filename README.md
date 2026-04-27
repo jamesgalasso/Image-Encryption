@@ -1,5 +1,9 @@
 ##WORK IN PROGRESS##
 
+usage: 
+gcc main.c cryptpng.c -o image-encryption -lz
+./program
+
 Can currently encrypt PNGs with LFSR
 
 

@@ -1,0 +1,115 @@
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <zlib.h> 
+#include "cryptpng.h"
+
+void readBytes(unsigned char** buffer, int count, size_t* bytes_read, int* loop, FILE *f){
+  unsigned char *temp = realloc(*buffer, count);
+  if(!temp){
+    printf("buffer is null, exiting\n");
+    free(*buffer);
+    exit(3); 
+  }
+  *buffer = temp;
+  *bytes_read = fread(*buffer, 1, count, f);
+  if(*bytes_read < count){
+    printf("EOF reached\n");
+    *loop = 0;
+  }
+  else if(*bytes_read != count){
+    printf("Error reading bytes, exiting\n");
+    exit(4);
+  } 
+}
+unsigned char *readInput(){
+  int count = 0, size=500, extra = 0, c;
+  unsigned char *buffer = malloc(size*sizeof(unsigned char));
+  if(buffer == NULL){
+    printf("Buffer is null exit 1\n");
+    exit(1);
+  }
+  if(fgets((char*)buffer, size*sizeof(unsigned char), stdin) == NULL){//fgets requires a char*, temporary casting
+    printf("failed to read input exit 2\n");
+    exit(2);
+  }
+    return buffer;
+}
+
+//function for en/decrypting PNG data with LFSR
+void lfsrpng(unsigned char *data, unsigned int initial_value, uint32_t data_length){
+  unsigned int feedback = 0x87654321;//define this globally later
+  unsigned int lfsr = initial_value;
+  for(int i = 0; i < data_length; i++){
+    for(int j = 0; j < 8; j++){
+      if(lfsr & 1)
+        lfsr = (lfsr>>1)^feedback;
+      else
+        lfsr >>=1;
+    }//end for j
+    data[i] ^= (lfsr & 0x00FF);
+  }//end for i
+}
+
+//function for en/decrypting pngs
+void cryptpng(){
+  //add in user input for file here
+  int loop = 1;
+  FILE *f = fopen("testfile.png", "rb");//TODO add user input for file names
+  FILE *f1 = fopen("output.png", "wb");
+  unsigned char png_signature[8] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+  unsigned char idat_hdr[4] = {0x49, 0x44, 0x41, 0x54};//possible endian issue?
+  uint32_t chunk_length = 0;
+  unsigned int initial_value = 0x12345678; // Initial value for LFSR define globally later
+
+  //check if files opened successfully
+  if(!f || !f1){
+    printf("failed to open file, exiting\n");
+    exit(1);
+  }
+
+  //check if PNG(or looks like PNG)
+  unsigned char *buffer = malloc(8);
+  if(!buffer){
+    printf("buffer is null, exiting\n");
+    exit(1);
+  }
+  size_t bytes_read = fread(buffer, 1, 8, f);
+  if(bytes_read != 8){
+    printf("failed to read png signature, exiting\n");
+    exit(1);
+  }
+  if(memcmp(buffer, png_signature, 8)){
+    printf("file is not a png, exiting\n");
+    exit(2);
+  }
+
+  while(loop){
+  //get chunk length
+  readBytes(buffer, 4, &bytes_read, &loop, f);
+  //chunk length is big endian in PNGs
+  chunk_length = ((uint32_t)(unsigned char)buffer[0] << 24) | 
+               ((uint32_t)(unsigned char)buffer[1] << 16) | 
+               ((uint32_t)(unsigned char)buffer[2] << 8) | 
+               (unsigned char)buffer[3];
+  readBytes(buffer, 4, &bytes_read, &loop, f);
+  if(!memcmp(buffer, idat_hdr, 4)){
+    printf("IDAT found\n");
+    //fseek in f1 to the current position in f1
+    readBytes(buffer, chunk_length, &bytes_read, &loop, f);//grab chunk data here
+    lfsrpng(buffer, initial_value, chunk_length);//lfsr on chunk data
+    //write encyrypted data to f1 here
+    // fseek(f, -chunk_length-4, SEEK_CUR);//CRC works on both IDAT header & data, move back to before the header
+    //compute CRC here
+    fseek(f, 4, SEEK_CUR);//move past header(rewrite maybe?)
+    fwrite(buffer, 1, chunk_length, f);//write encrypted data back to file
+    //write computed CRC here
+  } else {
+    printf("IDAT not found, skipping chunk\n");
+    fseek(f, chunk_length + 4, SEEK_CUR);
+  }
+}//end while
+free(buffer);
+  fclose(f);
+}//end cryptpng
