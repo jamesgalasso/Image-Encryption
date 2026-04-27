@@ -2,19 +2,22 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <zlib.h> //gcc lfsr.c -lz
 
-void readBytes(char* buffer, int count, size_t* bytes_read, int* loop, FILE *f){
-  buffer = realloc(buffer, count);
-  if(!buffer){
+void readBytes(unsigned char** buffer, int count, size_t* bytes_read, int* loop, FILE *f){
+  unsigned char *temp = realloc(*buffer, count);
+  if(!temp){
     printf("buffer is null, exiting\n");
+    free(*buffer);
     exit(3); 
   }
-  *bytes_read = fread(buffer, 1, count, f);
-  if(*bytes_read < 4){
+  *buffer = temp;
+  *bytes_read = fread(*buffer, 1, count, f);
+  if(*bytes_read < count){
     printf("EOF reached\n");
     *loop = 0;
   }
-  else if(*bytes_read != 4){
+  else if(*bytes_read != count){
     printf("Error reading bytes, exiting\n");
     exit(4);
   } 
@@ -48,7 +51,8 @@ unsigned char *cryptstring(unsigned char *data, unsigned int initialValue){
     }//end for i
     return data;
   }//end cryptstring
-//function for en/decrypting any image
+
+//function for en/decrypting PNG data with LFSR
 void lfsrpng(unsigned char *data, unsigned int initial_value, uint32_t data_length){
   unsigned int feedback = 0x87654321;//define this globally later
   unsigned int lfsr = initial_value;
@@ -70,6 +74,7 @@ void cryptpng(){
   int x = 0;
   int loop = 1;
   FILE *f = fopen("testfile.png", "rb");
+  FILE *f1 = fopen("output.png", "wb");
   unsigned char png_signature[8] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
   unsigned char idat_hdr[4] = {0x49, 0x44, 0x41, 0x54};//possible endian issue?
   uint32_t chunk_length = 0;
@@ -103,9 +108,11 @@ void cryptpng(){
   readBytes(buffer, 4, &bytes_read, &loop, f);
   if(!memcmp(buffer, idat_hdr, 4)){
     printf("IDAT found\n");
+    //fseek in f1 to the current position in f1
     readBytes(buffer, chunk_length, &bytes_read, &loop, f);//grab chunk data here
     lfsrpng(buffer, initial_value, chunk_length);//lfsr on chunk data
-    fseek(f, -chunk_length-4, SEEK_CUR);//CRC works on both IDAT header & data, move back to before the header
+    //write encyrypted data to f1 here
+    // fseek(f, -chunk_length-4, SEEK_CUR);//CRC works on both IDAT header & data, move back to before the header
     //compute CRC here
     fseek(f, 4, SEEK_CUR);//move past header(rewrite maybe?)
     fwrite(buffer, 1, chunk_length, f);//write encrypted data back to file
