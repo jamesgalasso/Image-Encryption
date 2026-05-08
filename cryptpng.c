@@ -52,6 +52,22 @@ void lfsrpng(unsigned char *data, unsigned int initial_value, uint32_t data_leng
   }//end for i
 }
 
+void decompressidat(unsigned char** buffer, uint32_t chunk_length){
+  //need uncompressed_size: // Set this appropriately (e.g., width * height * bytes_per_pixel * 1.1 for safety)
+  //find out how to get them
+  //malloc uncompressed_data as char* to another buffer(MUST BE SEPARATE)
+  //handle failure
+  //run uncompress
+  //check for it
+  //replace buffer with the data
+  //free uncompressed_
+}
+
+void compressidat(unsigned char** buffer, uint32_t chunk_length){
+ //need compressed size: // uncompressed_size+1024
+ //do same logic as before
+}
+
 //function for en/decrypting pngs
 void cryptpng(){
   //add in user input for file here
@@ -87,19 +103,19 @@ void cryptpng(){
 
   while(loop){
   //get chunk length
-  readBytes(buffer, 4, &bytes_read, &loop, f);
+  readBytes(&buffer, 4, &bytes_read, &loop, f);
   fwrite(buffer, 1, 4, f1);
   //chunk length is big endian in PNGs
   chunk_length = ((uint32_t)(unsigned char)buffer[0] << 24) | 
                ((uint32_t)(unsigned char)buffer[1] << 16) | 
                ((uint32_t)(unsigned char)buffer[2] << 8) | 
                (unsigned char)buffer[3];
-  readBytes(buffer, 4, &bytes_read, &loop, f);
+  readBytes(&buffer, 4, &bytes_read, &loop, f);
   fwrite(buffer, 1, 4, f1);
   if(!memcmp(buffer, idat_hdr, 4)){
     printf("IDAT found\n");
     //fseek in f1 to the current position in f1
-    readBytes(buffer, chunk_length, &bytes_read, &loop, f);//grab chunk data here
+    readBytes(&buffer, chunk_length, &bytes_read, &loop, f);//grab chunk data here
     //run decompression here
     lfsrpng(buffer, initial_value, chunk_length);//lfsr on chunk data
     //run compression here
@@ -108,7 +124,7 @@ void cryptpng(){
     fwrite(buffer, 1, chunk_length, f1);//write encrypted data back to file(note, needs to also write CRC)
   } else {
     printf("IDAT not found, skipping chunk\n");
-    readBytes(buffer, chunk_length+4, &bytes_read, &loop, f);//skip chunk + 4(CRC)
+    readBytes(&buffer, chunk_length+4, &bytes_read, &loop, f);//skip chunk + 4(CRC)
     fwrite(buffer, 1, chunk_length+4, f1); //write chunk + CRC to output file
   }
 }//end while
