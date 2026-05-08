@@ -88,28 +88,31 @@ void cryptpng(){
   while(loop){
   //get chunk length
   readBytes(buffer, 4, &bytes_read, &loop, f);
+  fwrite(buffer, 1, 4, f1);
   //chunk length is big endian in PNGs
   chunk_length = ((uint32_t)(unsigned char)buffer[0] << 24) | 
                ((uint32_t)(unsigned char)buffer[1] << 16) | 
                ((uint32_t)(unsigned char)buffer[2] << 8) | 
                (unsigned char)buffer[3];
   readBytes(buffer, 4, &bytes_read, &loop, f);
+  fwrite(buffer, 1, 4, f1);
   if(!memcmp(buffer, idat_hdr, 4)){
     printf("IDAT found\n");
     //fseek in f1 to the current position in f1
     readBytes(buffer, chunk_length, &bytes_read, &loop, f);//grab chunk data here
+    //run decompression here
     lfsrpng(buffer, initial_value, chunk_length);//lfsr on chunk data
-    //write encyrypted data to f1 here
-    // fseek(f, -chunk_length-4, SEEK_CUR);//CRC works on both IDAT header & data, move back to before the header
+    //run compression here
     //compute CRC here
-    fseek(f, 4, SEEK_CUR);//move past header(rewrite maybe?)
-    fwrite(buffer, 1, chunk_length, f);//write encrypted data back to file
-    //write computed CRC here
+    fseek(f, 4, SEEK_CUR);//move past header(do i still need this?)
+    fwrite(buffer, 1, chunk_length, f1);//write encrypted data back to file(note, needs to also write CRC)
   } else {
     printf("IDAT not found, skipping chunk\n");
-    fseek(f, chunk_length + 4, SEEK_CUR);
+    readBytes(buffer, chunk_length+4, &bytes_read, &loop, f);//skip chunk + 4(CRC)
+    fwrite(buffer, 1, chunk_length+4, f1); //write chunk + CRC to output file
   }
 }//end while
 free(buffer);
   fclose(f);
+  fclose(f1);
 }//end cryptpng
