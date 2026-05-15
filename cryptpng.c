@@ -52,20 +52,11 @@ void lfsrpng(unsigned char *data, unsigned int initial_value, uint32_t data_leng
   }//end for i
 }
 
-void decompressidat(unsigned char** buffer, uint32_t chunk_length){
-  //need uncompressed_size: // Set this appropriately (e.g., width * height * bytes_per_pixel * 1.1 for safety)
-  //find out how to get them
-  //malloc uncompressed_data as char* to another buffer(MUST BE SEPARATE)
-  //handle failure
-  //run uncompress
-  //check for it
-  //replace buffer with the data
-  //free uncompressed_
+void decompressidat(){
+  //consider writing DEFLATE myself
 }
 
-void compressidat(unsigned char** buffer, uint32_t chunk_length){
- //need compressed size: // uncompressed_size+1024
- //do same logic as before
+void compressidat(){
 }
 
 //function for en/decrypting pngs
@@ -75,8 +66,9 @@ void cryptpng(){
   FILE *f = fopen("testfile.png", "rb");//TODO add user input for file names
   FILE *f1 = fopen("output.png", "wb");
   unsigned char png_signature[8] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
-  unsigned char idat_hdr[4] = {0x49, 0x44, 0x41, 0x54};//possible endian issue?
-  uint32_t chunk_length = 0;
+  // unsigned char idat_hdr[4] = {0x49, 0x44, 0x41, 0x54};//possible endian issue?
+  uint32_t chunk_length = 0, width = 0, height = 0, scanline_bytes = 0, uncompressed_size = 0;
+  uint8_t bit_depth = 0, color_type = 0, compression_method = 0, filter_method = 0, interlace_method = 0, bytes_per_pixel = 0;
   unsigned int initial_value = 0x12345678; // Initial value for LFSR define globally later
 
   //check if files opened successfully
@@ -86,7 +78,7 @@ void cryptpng(){
   }
 
   //check if PNG(or looks like PNG)
-  unsigned char *buffer = malloc(8);
+  unsigned char *buffer = malloc(8); 
   if(!buffer){
     printf("buffer is null, exiting\n");
     exit(1);
@@ -100,6 +92,64 @@ void cryptpng(){
     printf("file is not a png, exiting\n");
     exit(2);
   }
+
+
+  //get file specification data from IHDR
+  readBytes(&buffer, 4, &bytes_read, &loop, f);
+  width = ((uint32_t)(unsigned char)buffer[0] << 24) | 
+          ((uint32_t)(unsigned char)buffer[1] << 16) | 
+          ((uint32_t)(unsigned char)buffer[2] << 8) | 
+          (unsigned char)buffer[3];
+  readBytes(&buffer, 4, &bytes_read, &loop, f);
+  height = ((uint32_t)(unsigned char)buffer[0] << 24) | 
+           ((uint32_t)(unsigned char)buffer[1] << 16) | 
+           ((uint32_t)(unsigned char)buffer[2] << 8) | 
+           (unsigned char)buffer[3];
+  readBytes(&buffer, 1, &bytes_read, &loop, f);
+  bit_depth = buffer[0];
+  readBytes(&buffer, 1, &bytes_read, &loop, f);
+  color_type = buffer[0];
+  readBytes(&buffer, 1, &bytes_read, &loop, f);
+  compression_method = buffer[0];
+  readBytes(&buffer, 1, &bytes_read, &loop, f);
+  filter_method = buffer[0];
+  readBytes(&buffer, 1, &bytes_read, &loop, f);
+  interlace_method = buffer[0];
+
+  //##CHECK ZLIB DOCUMENTATION
+  //below are possibly required for compression/decompression 
+  /*
+  samples per pixel is dictated by color type
+  0 (grayscale) → 1
+2 (truecolor RGB) → 3
+3 (indexed/palette) → 1 (palette index only)
+4 (grayscale + alpha) → 2
+6 (truecolor + alpha RGBA) → 4
+  */
+  switch(color_type){
+    case 0: //grayscale
+      samples_per_pixel = 1;
+      break;
+    case 2: //truecolor
+      samples_per_pixel = 3;
+      break;
+    case 3: //indexed color
+      samples_per_pixel = 1;
+      break;
+    case 4: //grayscale with alpha
+      samples_per_pixel = 2;
+      break;
+    case 6: //truecolor with alpha
+      samples_per_pixel = 4;
+      break;
+    default:
+      printf("unsupported color type, exiting\n");
+      exit(3);
+  }
+  bytes_per_pixel = (bit_depth * samples_per_pixel + 7) / 8;
+  scanline_bytes = (width * samples_per_pixel * bit_depth + 7) / 8;
+  uncompressed_size = height * (1+scanline_bytes); //account for filter byte at start of each scanline
+  //## END CHECK
 
   while(loop){
   //get chunk length
