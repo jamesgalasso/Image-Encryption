@@ -1,3 +1,13 @@
+//i cannot encrypt an IDAT chunk at a time, the compression needs to happen on all IDAT data at once
+//all the data must be collected into one array, inflated, encrypted, deflated, and written to the new file
+//IDAT chunks are always consecutive, when writing back, I can pick an arbitrary chunk size.
+//chunk sizes are just metadata, they don't affect rendering.
+//remember to recompute CRCs
+/**
+ from stack overflow:
+ Considering this, I believe that use rather small IDAT chunks (say, 16KB or 64KB) should be recommended practice. The overhead (12 bytes per chunk, less than 1/5000 if len=64KB) is negligible.
+ */
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -117,6 +127,7 @@ void cryptpng(){
   interlace_method = buffer[0];
 
   //##CHECK ZLIB DOCUMENTATION
+  //MAY NOT NEED ALL OF THIS
   //below are possibly required for compression/decompression 
   /*
   samples per pixel is dictated by color type
@@ -126,56 +137,47 @@ void cryptpng(){
 4 (grayscale + alpha) → 2
 6 (truecolor + alpha RGBA) → 4
   */
-  switch(color_type){
-    case 0: //grayscale
-      samples_per_pixel = 1;
-      break;
-    case 2: //truecolor
-      samples_per_pixel = 3;
-      break;
-    case 3: //indexed color
-      samples_per_pixel = 1;
-      break;
-    case 4: //grayscale with alpha
-      samples_per_pixel = 2;
-      break;
-    case 6: //truecolor with alpha
-      samples_per_pixel = 4;
-      break;
-    default:
-      printf("unsupported color type, exiting\n");
-      exit(3);
-  }
-  bytes_per_pixel = (bit_depth * samples_per_pixel + 7) / 8;
-  scanline_bytes = (width * samples_per_pixel * bit_depth + 7) / 8;
-  uncompressed_size = height * (1+scanline_bytes); //account for filter byte at start of each scanline
-  //## END CHECK
+  // switch(color_type){
+  //   case 0: //grayscale
+  //     samples_per_pixel = 1;
+  //     break;
+  //   case 2: //truecolor
+  //     samples_per_pixel = 3;
+  //     break;
+  //   case 3: //indexed color
+  //     samples_per_pixel = 1;
+  //     break;
+  //   case 4: //grayscale with alpha
+  //     samples_per_pixel = 2;
+  //     break;
+  //   case 6: //truecolor with alpha
+  //     samples_per_pixel = 4;
+  //     break;
+  //   default:
+  //     printf("unsupported color type, exiting\n");
+  //     exit(3);
+  // }
+  // bytes_per_pixel = (bit_depth * samples_per_pixel + 7) / 8;
+  // scanline_bytes = (width * samples_per_pixel * bit_depth + 7) / 8;
+  // uncompressed_size = height * (1+scanline_bytes); //account for filter byte at start of each scanline
+  // //## END CHECK
 
   while(loop){
   //get chunk length
   readBytes(&buffer, 4, &bytes_read, &loop, f);
-  fwrite(buffer, 1, 4, f1);
   //chunk length is big endian in PNGs
   chunk_length = ((uint32_t)(unsigned char)buffer[0] << 24) | 
                ((uint32_t)(unsigned char)buffer[1] << 16) | 
                ((uint32_t)(unsigned char)buffer[2] << 8) | 
                (unsigned char)buffer[3];
   readBytes(&buffer, 4, &bytes_read, &loop, f);
-  fwrite(buffer, 1, 4, f1);
   if(!memcmp(buffer, idat_hdr, 4)){
     printf("IDAT found\n");
-    //fseek in f1 to the current position in f1
     readBytes(&buffer, chunk_length, &bytes_read, &loop, f);//grab chunk data here
-    //run decompression here
-    lfsrpng(buffer, initial_value, chunk_length);//lfsr on chunk data
-    //run compression here
-    //compute CRC here
     fseek(f, 4, SEEK_CUR);//move past header(do i still need this?)
-    fwrite(buffer, 1, chunk_length, f1);//write encrypted data back to file(note, needs to also write CRC)
   } else {
     printf("IDAT not found, skipping chunk\n");
     readBytes(&buffer, chunk_length+4, &bytes_read, &loop, f);//skip chunk + 4(CRC)
-    fwrite(buffer, 1, chunk_length+4, f1); //write chunk + CRC to output file
   }
 }//end while
 free(buffer);
